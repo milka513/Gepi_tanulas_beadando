@@ -42,4 +42,5 @@ for i in range(1, 11):
         #      & (temp['available']=='t') &
         #               (temp['listing_id']==id[0])].values)
 #print(listings_data)
+#listings_data.drop(['name', 'host_id', 'host_name', 'latitude', 'longitude'], axis=1)
 listings_data.to_csv('summed_data2.csv')
