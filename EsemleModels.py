@@ -12,7 +12,7 @@ import matplotlib.tri as mtri
 from sklearn.preprocessing import StandardScaler
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.preprocessing import PolynomialFeatures
-
+from sklearn.neighbors import KNeighborsRegressor
 class train(object):
 
     def __init__(self):
@@ -41,12 +41,22 @@ class train(object):
             }
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             pipe = Pipeline(steps=[('sp', sp), ('rfr', rfr)])
-            gridsearch = GridSearchCV(pipe, param_best_grid,scoring=optimizer, cv=cv, verbose=10, n_jobs=10)
+            gridsearch = GridSearchCV(pipe, param_best_grid,scoring=optimizer, cv=cv, verbose=10, n_jobs=10, weights='distance')
             gridsearch.fit(self.x_train, self.y_train)
 
             df=pd.DataFrame(gridsearch.cv_results_)
             self.save_pickle_dataframe('./random_forest_{0}.pkl'.format(optimizer),df )
 
+    def baseline(self):
+        for optimizer in self.optimizers:
+            base_model = KNeighborsRegressor()
+            parameters=[{'n_neighbors': range(1,11)}]
+            clf = GridSearchCV(base_model, parameters, cv=10, scoring=optimizer, return_train_score=True, refit=True)
+            clf.fit(self.x_train, self.y_train)
+            print("Best parameters: ")
+            print(clf.best_params_)
+            print("Best parameters' socres: ")
+            print(clf.best_score_)
     def randomForest_train_poly(self):
         for optimizer in self.optimizers:
             rfr = RandomForestRegressor()
@@ -173,9 +183,10 @@ class train(object):
         self.x_test = x_test
 
 t=train()
+t.baseline()
 #t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error_standard.pkl')
-t.random_tree_with_standard_data_test('random_forest_r2.pkl')
-t.examine_output_randomforest('random_forest_neg_mean_squared_error.pkl')
+#t.random_tree_with_standard_data_test('random_forest_r2.pkl')
+#t.examine_output_randomforest('random_forest_neg_mean_squared_error.pkl')
 #t.examine_output_randomforest('random_forest_explained_variance.pkl')
 #t.random_tree_with_standard_data_train()
 #t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error.pkl')
