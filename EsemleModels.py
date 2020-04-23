@@ -47,16 +47,7 @@ class train(object):
             df=pd.DataFrame(gridsearch.cv_results_)
             self.save_pickle_dataframe('./random_forest_{0}.pkl'.format(optimizer),df )
 
-    def baseline(self):
-        for optimizer in self.optimizers:
-            base_model = KNeighborsRegressor()
-            parameters=[{'n_neighbors': range(1,11)}]
-            clf = GridSearchCV(base_model, parameters, cv=10, scoring=optimizer, return_train_score=True, refit=True)
-            clf.fit(self.x_train, self.y_train)
-            print("Best parameters: ")
-            print(clf.best_params_)
-            print("Best parameters' socres: ")
-            print(clf.best_score_)
+
     def randomForest_train_poly(self):
         for optimizer in self.optimizers:
             rfr = RandomForestRegressor()
