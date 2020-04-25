@@ -13,21 +13,26 @@ from sklearn.preprocessing import StandardScaler
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.neighbors import KNeighborsRegressor
+import matplotlib as mpl
+from sklearn.metrics import r2_score
+from sklearn.metrics import mean_squared_error
+
+
 class train(object):
 
     def __init__(self):
-        df = pd.read_csv('./summed_data_to_train.csv')
-        df = df.drop(['Unnamed: 0'], axis=1)
-        self.y = df['price']
-        x = df
-        x = x.drop(['price'], axis=1)
-        self.x = x.values
+       # df = pd.read_csv('./summed_data_to_train.csv')
+       # df = df.drop(['Unnamed: 0'], axis=1)
+       # self.y = df['price']
+       # x = df
+       # x = x.drop(['price'], axis=1)
+       # self.x = x.values
         self.optimizers=['neg_mean_squared_error', 'r2', 'explained_variance']
 	#self.optimizers=['explained_variance']
         [self.x_train, self.x_test, self.y_train, self.y_test]=\
             [np.loadtxt('./files/x_train.csv', delimiter=",", dtype=float), np.loadtxt('./files/x_test.csv',delimiter=",", dtype=float),
              np.loadtxt('./files/y_train.csv',delimiter=",", dtype=float), np.loadtxt('./files/y_test.csv',delimiter=",", dtype=float)]
-        print(self.y_train)
+        #print(self.y_train)
     def save_pickle_dataframe(self, path, dataframe):
         dataframe.to_pickle(path)
 
@@ -39,6 +44,7 @@ class train(object):
                 'sp__percentile': np.linspace(10.0, 100.0, 10),
                 'rfr__n_estimators': range(50, 550, 50)
             }
+            cv = StratifiedKFold(n_splits=10, shuffle=True)
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             pipe = Pipeline(steps=[('sp', sp), ('rfr', rfr)])
             gridsearch = GridSearchCV(pipe, param_best_grid,scoring=optimizer, cv=cv, verbose=10, n_jobs=10, weights='distance')
@@ -73,7 +79,7 @@ class train(object):
             param_best_grid = {
                 'sp__percentile': np.linspace(10.0, 100.0, 10),
                 'gbr__loss': ['ls', 'lad', 'huber', 'quantile'],
-                'gbr__learning_rate': [0.1, 0.01, 0.001]
+                'gbr__learning_rate': [1.0,0.5,0.2,0.1, 0.01, 0.001]
             }
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             pipe = Pipeline(steps=[('sp', sp), ('gbr', gbr)])
@@ -95,15 +101,29 @@ class train(object):
             df2=df[df['param_gbr__loss']==loss]
             triang = mtri.Triangulation(df2['param_sp__percentile'],
                                         df2['param_gbr__learning_rate'])
-            ax.plot_trisurf(triang, df2['mean_test_score'], cmap='jet')
+            ax.plot_trisurf(triang, df2['mean_test_score'], cmap='Blues')
+            fake2Dline = mpl.lines.Line2D([0], [0], linestyle="none", c='b', marker='o')
+            fake2Dline2 = mpl.lines.Line2D([1], [1], linestyle="none", c='r', marker='o')
+            ax.legend([fake2Dline, fake2Dline2], ['Validációs score', 'Train score'], numpoints=1)
 
             ax.scatter(df2['param_sp__percentile'], df2['param_gbr__learning_rate'],
                        df2['mean_test_score'], marker='.', s=10, c="black", alpha=0.5)
-            ax.plot_trisurf(triang, df2['mean_train_score'], cmap='jet')
+            ax.plot_trisurf(triang, df2['mean_train_score'], cmap='Reds')
 
             ax.scatter(df2['param_sp__percentile'], df2['param_gbr__learning_rate'],
                        df2['mean_train_score'], marker='.', s=10, c="black", alpha=0.5)
             ax.view_init(elev=60, azim=-45)
+            if df[df['rank_test_score'] == 1]['param_gbr__loss'].values[0]==loss:
+                ax.scatter(df[df['rank_test_score'] == 1]['param_sp__percentile'].values,
+                           df[df['rank_test_score'] == 1]['param_gbr__learning_rate'].values,
+                           df[df['rank_test_score'] == 1]['mean_test_score'].values, marker='.', s=100, c="red",
+                           alpha=1.0)
+                ax.scatter(df[df['rank_test_score'] == 1]['param_sp__percentile'].values,
+                           df[df['rank_test_score'] == 1]['param_gbr__learning_rate'].values,
+                           df[df['rank_test_score'] == 1]['mean_train_score'].values, marker='.', s=100, c="red",
+                           alpha=1.0)
+
+
             print(df['mean_test_score'])
 
             ax.set_xlabel('X')
@@ -172,12 +192,27 @@ class train(object):
         self.examine_output_randomforest(filepath)
         self.x_train = x_train
         self.x_test = x_test
+    def test_random_forest(self, filepath, score):
+        df=pd.read_pickle(filepath)
+        best_of=df[df['rank_test_score'] == 1]
+
+        rfr = RandomForestRegressor(n_estimators=best_of['param_rfr__n_estimators'].vallues[0])
+        sp = SelectPercentile(mutual_info_regression, percentile=best_of['param_sp__percentile'].values[0])
+        model= Pipeline(steps=[('sp', sp), ('rfr', rfr)])
+
+        model.fit(self.x_train, self.y_train)
+        y_pred=model.predict(self.x_test)
+        if score=='r2':
+            return r2_score(self.y_test, y_pred)
+        else:
+            return mean_squared_error(self.y_test, y_pred)
+
 
 t=train()
-t.baseline()
 #t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error_standard.pkl')
 #t.random_tree_with_standard_data_test('random_forest_r2.pkl')
 #t.examine_output_randomforest('random_forest_neg_mean_squared_error.pkl')
+#t.examine_output_randomforest('random_forest_neg_mean_squared_error_standard.pkl')
 #t.examine_output_randomforest('random_forest_explained_variance.pkl')
 #t.random_tree_with_standard_data_train()
 #t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error.pkl')
@@ -187,7 +222,7 @@ t.baseline()
 #t.examine_output_gbr('gbr_neg_mean_squared_error.pkl')
 #t.examine_output_randomforest('random_forest_r2_10.pkl')
 #t.examine_output_randomforest('random_forest_r2_3.pkl')
-#t.examine_output_gbr('gbr_r2.pkl')
+t.examine_output_gbr('gbr_neg_mean_squared_error.pkl')
 #t.examine_output_randomforest('random_forest_explained_variance_10.pkl')
 #t.examine_output_randomforest('random_forest_explained_variance_3.pkl')
 #t.examine_output_gbr('gbr_explained_variance_10.pkl')
