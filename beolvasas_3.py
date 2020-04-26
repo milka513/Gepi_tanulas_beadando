@@ -9,5 +9,4 @@ listings_data=pd.merge(listings_data, temp, how='left', left_on=['id'], right_on
 
 listings_data=listings_data.drop(['name', 'host_id', 'host_name', 'latitude', 'longitude', 'id', 'Unnamed: 0'], axis=1)
 print(listings_data.columns)
-#listings_data.drop(['name', 'host_id', 'host_name', 'latitude', 'longitude'], axis=1)
 listings_data.to_csv('summed_data_vegleges.csv')

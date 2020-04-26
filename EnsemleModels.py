@@ -21,22 +21,15 @@ from sklearn.metrics import mean_squared_error
 class train(object):
 
     def __init__(self):
-       # df = pd.read_csv('./summed_data_to_train.csv')
-       # df = df.drop(['Unnamed: 0'], axis=1)
-       # self.y = df['price']
-       # x = df
-       # x = x.drop(['price'], axis=1)
-       # self.x = x.values
         self.optimizers=['neg_mean_squared_error', 'r2', 'explained_variance']
-	#self.optimizers=['explained_variance']
         [self.x_train, self.x_test, self.y_train, self.y_test]=\
             [np.loadtxt('./files/x_train.csv', delimiter=",", dtype=float), np.loadtxt('./files/x_test.csv',delimiter=",", dtype=float),
              np.loadtxt('./files/y_train.csv',delimiter=",", dtype=float), np.loadtxt('./files/y_test.csv',delimiter=",", dtype=float)]
-        #print(self.y_train)
     def save_pickle_dataframe(self, path, dataframe):
         dataframe.to_pickle(path)
 
-    def randomForest_train(self):
+    #1. probalkozas
+    def randomForest_train(self,postfix):
         for optimizer in self.optimizers:
             rfr = RandomForestRegressor()
             sp = SelectPercentile(mutual_info_regression)
@@ -47,14 +40,14 @@ class train(object):
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             pipe = Pipeline(steps=[('sp', sp), ('rfr', rfr)])
-            gridsearch = GridSearchCV(pipe, param_best_grid,scoring=optimizer, cv=cv, verbose=10, n_jobs=10, weights='distance')
+            gridsearch = GridSearchCV(pipe, param_best_grid,scoring=optimizer, cv=cv, verbose=10, n_jobs=10)
             gridsearch.fit(self.x_train, self.y_train)
 
             df=pd.DataFrame(gridsearch.cv_results_)
-            self.save_pickle_dataframe('./random_forest_{0}.pkl'.format(optimizer),df )
+            self.save_pickle_dataframe('./random_forest_{0}_{1}.pkl'.format(optimizer,postfix),df )
 
-
-    def randomForest_train_poly(self):
+    #3. probalkozas
+    def randomForest_train_poly(self,postfix):
         for optimizer in self.optimizers:
             rfr = RandomForestRegressor()
             sp = SelectPercentile(mutual_info_regression)
@@ -69,9 +62,10 @@ class train(object):
             gridsearch.fit(self.x_train, self.y_train)
 
             df=pd.DataFrame(gridsearch.cv_results_)
-            self.save_pickle_dataframe('./random_forest_{0}.pkl'.format(optimizer),df )
+            self.save_pickle_dataframe('./random_forest_{0}_{1}.pkl'.format(optimizer, postfix),df )
 
 
+    #gradientboosting 1 probalkozas
     def gradientboosting_train(self):
         for optimizer in self.optimizers:
             gbr = GradientBoostingRegressor()
@@ -79,7 +73,7 @@ class train(object):
             param_best_grid = {
                 'sp__percentile': np.linspace(10.0, 100.0, 10),
                 'gbr__loss': ['ls', 'lad', 'huber', 'quantile'],
-                'gbr__learning_rate': [1.0,0.5,0.2,0.1, 0.01, 0.001]
+                'gbr__learning_rate': [0.1, 0.01, 0.001]
             }
             cv = StratifiedKFold(n_splits=10, shuffle=True)
             pipe = Pipeline(steps=[('sp', sp), ('gbr', gbr)])
@@ -89,12 +83,11 @@ class train(object):
             df = pd.DataFrame(gridsearch.cv_results_)
             self.save_pickle_dataframe('./gbr_{0}.pkl'.format(optimizer), df)
 
+    #gradientboosting-abrageneralas: igazabol notebookban van benne.
     def examine_output_gbr(self, filename):
         df = pd.read_pickle(filename)
         best_of = df[df['rank_test_score'] == 1]
         print('osszesitett: ', best_of[['param_gbr__loss', 'param_sp__percentile','param_gbr__learning_rate', 'mean_test_score']])
-        print(type(best_of))
-        print(df[df['mean_test_score']>df['mean_train_score']])
         for loss in ['ls', 'lad', 'huber', 'quantile']:
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
@@ -104,7 +97,7 @@ class train(object):
             ax.plot_trisurf(triang, df2['mean_test_score'], cmap='Blues')
             fake2Dline = mpl.lines.Line2D([0], [0], linestyle="none", c='b', marker='o')
             fake2Dline2 = mpl.lines.Line2D([1], [1], linestyle="none", c='r', marker='o')
-            ax.legend([fake2Dline, fake2Dline2], ['Validációs score', 'Train score'], numpoints=1)
+            ax.legend([fake2Dline, fake2Dline2], ['Validacios score', 'Train score'], numpoints=1)
 
             ax.scatter(df2['param_sp__percentile'], df2['param_gbr__learning_rate'],
                        df2['mean_test_score'], marker='.', s=10, c="black", alpha=0.5)
@@ -133,32 +126,24 @@ class train(object):
             print(df.columns)
             print(df)
 
-
+    #randomforest eredmenyenek vizsgalata, ez is a notebookban van helyesen.
     def examine_output_randomforest(self, filename):
         df=pd.read_pickle(filename)
         best_of=df[df['rank_test_score'] == 1]
         print('osszesitett: ',best_of[['param_rfr__n_estimators', 'param_sp__percentile', 'mean_test_score']])
-        print(type(best_of))
-        print(df['param_rfr__n_estimators'].unique())
-        print('itt ',df[df['mean_test_score'] > df['mean_train_score']])
         fig=plt.figure()
         ax=fig.add_subplot(111, projection='3d')
         triang=mtri.Triangulation(df['param_rfr__n_estimators'],
                                   df['param_sp__percentile'])
         ax.plot_trisurf(triang, df['mean_test_score'], cmap='jet')
 
-       # ax.scatter(df['param_rfr__n_estimators'], df['param_sp__percentile'],
-        #           df['mean_test_score'], marker='.', s=10, c="black", alpha=0.5)
         ax.plot_trisurf(triang, df['mean_train_score'], cmap='jet')
         print('param: ', df[df['rank_test_score'] == 1]['param_rfr__n_estimators'].values[0])
-       # ax.scatter(df['param_rfr__n_estimators'], df['param_sp__percentile'],
-       #            df['mean_train_score'], marker='.', s=10, c="black", alpha=0.5)
+
         ax.scatter(df[df['rank_test_score'] == 1]['param_rfr__n_estimators'].values, df[df['rank_test_score'] == 1]['param_sp__percentile'].values,
                    df[df['rank_test_score'] == 1]['mean_test_score'].values, marker='.', s=100, c="red", alpha=1.0)
         print('best_of: ',df['param_rfr__n_estimators'][df['rank_test_score'] == 1])
         print('itt: ',best_of.columns)
-        #ax.scatter(best_of[['param_rfr__n_estimators']].values[0][0], best_of[['param_sp__percentile']].values[0][0],
-        #           best_of[['mean_train_score']].values[0][0], marker='.', s=10, c="red", alpha=0.5)
         ax.view_init(elev=60, azim=-45)
         print(df['mean_test_score'])
 
@@ -169,19 +154,29 @@ class train(object):
         print(df.columns)
         print(df)
 
-    def random_tree_with_standard_data_train(self):
+    #3. probalkozas
+    def random_tree_with_standard_data_train_poly(self, postfix):
         scaler=StandardScaler()
         x_train=self.x_train
         x_test=self.x_test
         scaler.fit_transform(self.x_train)
         scaler.transform(self.x_test)
-       # poly=PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
-       # self.x_train=poly.fit_transform(self.x_train)
-       # self.x_test=poly.transform(self.x_test)
-        self.randomForest_train_poly()
+        self.randomForest_train_poly(postfix)
         self.x_train=x_train
         self.x_test=x_test
 
+    #2. probalkozas
+    def random_tree_with_standard_data_train(self, postfix):
+        scaler = StandardScaler()
+        x_train = self.x_train
+        x_test = self.x_test
+        scaler.fit_transform(self.x_train)
+        scaler.transform(self.x_test)
+        self.randomForest_train(postfix)
+        self.x_train = x_train
+        self.x_test = x_test
+
+    #2.-3. probalkozas tesztelese
     def random_tree_with_standard_data_test(self, filepath):
         scaler = StandardScaler()
         x_train = self.x_train
@@ -192,6 +187,8 @@ class train(object):
         self.examine_output_randomforest(filepath)
         self.x_train = x_train
         self.x_test = x_test
+
+    #random forest tesztelese, igazabol felhasznalva lsd: osszesitett notebook
     def test_random_forest(self, filepath, score):
         df=pd.read_pickle(filepath)
         best_of=df[df['rank_test_score'] == 1]
@@ -209,14 +206,18 @@ class train(object):
 
 
 t=train()
+#1. proba
+t.randomForest_train('10')
+#2. proba
+t.random_tree_with_standard_data_train('standard')
+#3. proba
+t.random_tree_with_standard_data_train('poly')
+
 #t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error_standard.pkl')
 #t.random_tree_with_standard_data_test('random_forest_r2.pkl')
 #t.examine_output_randomforest('random_forest_neg_mean_squared_error.pkl')
 #t.examine_output_randomforest('random_forest_neg_mean_squared_error_standard.pkl')
 #t.examine_output_randomforest('random_forest_explained_variance.pkl')
-#t.random_tree_with_standard_data_train()
-#t.random_tree_with_standard_data_test('random_forest_neg_mean_squared_error.pkl')
-#t.gradientboosting_train()
 #t.examine_output_randomforest('random_forest_neg_mean_squared_error_10.pkl')
 #t.examine_output_randomforest('random_forest_neg_mean_squared_error_3.pkl')
 #t.examine_output_gbr('gbr_neg_mean_squared_error.pkl')
